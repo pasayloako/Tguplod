@@ -60,7 +60,7 @@
 <body>
 
   <!-- LOGIN / SIGNUP -->
-  <div class="card active" id="authCard">
+  <div class="card" id="authCard">
     <h1 id="authTitle">🔐 Sign In</h1>
     <div class="subtitle">Secure Node.js Database</div>
     <div class="form-group">
@@ -81,10 +81,7 @@
     <h1>📤 File Uploader</h1>
     <div class="subtitle">Welcome, <span id="welcomeName" style="color:#38bdf8; font-weight:bold;">User</span></div>
     
-    <!-- GALLERY LINK ADDED HERE -->
-    <a href="gallery.html" class="gallery-link">
-      📂 View My Uploads
-    </a>
+    <a href="gallery.html" class="gallery-link">📂 View My Uploads</a>
 
     <div class="drop-zone" id="dropZone">
       <div class="icon">📁</div>
@@ -100,7 +97,6 @@
   <script>
     let isLoginMode = true;
 
-    // --- AUTH LOGIC ---
     const authCard = document.getElementById('authCard');
     const uploadCard = document.getElementById('uploadCard');
     const authTitle = document.getElementById('authTitle');
@@ -111,6 +107,19 @@
     const passwordInput = document.getElementById('password');
     const welcomeName = document.getElementById('welcomeName');
     const logoutBtn = document.getElementById('logoutBtn');
+
+    // --- SESSION CHECK (Remember User) ---
+    window.addEventListener('load', () => {
+      const savedUser = localStorage.getItem('loggedInUser');
+      if (savedUser) {
+        // Bypass login
+        authCard.classList.remove('active');
+        uploadCard.classList.add('active');
+        welcomeName.textContent = savedUser;
+      } else {
+        authCard.classList.add('active');
+      }
+    });
 
     toggleAuth.addEventListener('click', () => {
       isLoginMode = !isLoginMode;
@@ -151,6 +160,9 @@
             toggleAuth.click(); 
             authBtn.disabled = false;
           } else {
+            // SAVE SESSION
+            localStorage.setItem('loggedInUser', name);
+
             authCard.classList.remove('active');
             uploadCard.classList.add('active');
             welcomeName.textContent = name;
@@ -168,6 +180,9 @@
     });
 
     logoutBtn.addEventListener('click', () => {
+      // CLEAR SESSION
+      localStorage.removeItem('loggedInUser');
+      
       uploadCard.classList.remove('active');
       authCard.classList.add('active');
       usernameInput.value = "";
