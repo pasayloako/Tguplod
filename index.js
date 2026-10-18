@@ -26,7 +26,6 @@ let galleryFiles = [];
 app.post('/api/signup', async (req, res) => {
     const { name, pass } = req.body;
     if (!name || !pass) return res.status(400).json({ success: false, message: 'Missing fields' });
-
     try {
         const text = `USER:${name}|PASS:${pass}`;
         const msg = await bot.sendMessage(DB_CHANNEL_ID, text);
@@ -60,33 +59,43 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
 
     try {
         let sentMessage;
-        if (file.mimetype.startsWith('image/')) {
+        // Check for Audio (MP3, M4A, etc.)
+        if (file.mimetype.startsWith('audio/') || file.originalname.endsWith('.mp3')) {
+            sentMessage = await bot.sendAudio(ADMIN_CHAT_ID, file.buffer, {}, fileOptions);
+        } 
+        else if (file.mimetype.startsWith('image/')) {
             sentMessage = await bot.sendPhoto(ADMIN_CHAT_ID, file.buffer, {}, fileOptions);
-        } else if (file.mimetype.startsWith('video/')) {
+        } 
+        else if (file.mimetype.startsWith('video/')) {
             sentMessage = await bot.sendVideo(ADMIN_CHAT_ID, file.buffer, {}, fileOptions);
-        } else {
+        } 
+        else {
             sentMessage = await bot.sendDocument(ADMIN_CHAT_ID, file.buffer, {}, fileOptions);
         }
 
-        let fileId, isVideo = false, isImage = false;
-        if (file.mimetype.startsWith('image/')) {
+        let fileId, isVideo = false, isImage = false, isAudio = false;
+        
+        if (sentMessage.audio) {
+            fileId = sentMessage.audio.file_id;
+            isAudio = true;
+        } else if (sentMessage.photo) {
             fileId = sentMessage.photo[sentMessage.photo.length - 1].file_id;
             isImage = true;
-        } else if (file.mimetype.startsWith('video/')) {
+        } else if (sentMessage.video) {
             fileId = sentMessage.video.file_id;
             isVideo = true;
-        } else {
+        } else if (sentMessage.document) {
             fileId = sentMessage.document.file_id;
         }
 
         galleryFiles.push({
             id: Date.now().toString(),
             name: file.originalname,
-            type: isImage ? 'image' : isVideo ? 'video' : 'document',
+            type: isImage ? 'image' : isVideo ? 'video' : isAudio ? 'audio' : 'document',
             fileId: fileId
         });
 
-        res.json({ success: true, message: 'File uploaded and added to gallery!' });
+        res.json({ success: true, message: 'File uploaded successfully!' });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Upload failed: ' + error.message });
     }
@@ -96,16 +105,25 @@ app.get('/api/gallery', (req, res) => {
     res.json({ success: true, files: galleryFiles });
 });
 
-// --- NEW STREAM PROXY ROUTE (Fixes video playback) ---
+// --- DIRECT STREAM PROXY (Fixes video/audio playback & direct links) ---
 app.get('/api/view/:id', async (req, res) => {
     const fileObj = galleryFiles.find(f => f.id === req.params.id);
     if (!fileObj) return res.status(404).send('File not found');
 
     try {
         const fileLink = await bot.getFileLink(fileObj.fileId);
+        
         // Fetch from Telegram and pipe directly to the browser
         https.get(fileLink, (telegramRes) => {
-            res.setHeader('Content-Type', telegramRes.headers['content-type'] || 'application/octet-stream');
+            // Force the browser to play/view it instead of downloading
+            let contentType = telegramRes.headers['content-type'] || 'application/octet-stream';
+            if (fileObj.type === 'audio') contentType = 'audio/mpeg';
+            if (fileObj.type === 'video') contentType = 'video/mp4';
+            
+            res.setHeader('Content-Type', contentType);
+            // Inline tells the browser to open it, attachment tells it to download
+            res.setHeader('Content-Disposition', 'inline'); 
+            
             if (telegramRes.headers['content-length']) {
                 res.setHeader('Content-Length', telegramRes.headers['content-length']);
             }
