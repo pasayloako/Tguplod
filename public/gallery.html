@@ -47,6 +47,11 @@
   </div>
 
   <script>
+    // Security check: If no user is saved, send back to login
+    if (!localStorage.getItem('loggedInUser')) {
+      window.location.href = 'index.html';
+    }
+
     async function loadGallery() {
       const grid = document.getElementById('galleryGrid');
       try {
@@ -58,7 +63,7 @@
           return;
         }
 
-        grid.innerHTML = ''; // Clear loading text
+        grid.innerHTML = ''; 
 
         data.files.forEach(file => {
           const card = document.createElement('div');
@@ -70,7 +75,8 @@
           if (file.type === 'image') {
             mediaHTML = `<img src="${fileUrl}" alt="${file.name}" loading="lazy">`;
           } else if (file.type === 'video') {
-            mediaHTML = `<video src="${fileUrl}" controls></video>`;
+            // Now plays perfectly with the Node proxy
+            mediaHTML = `<video src="${fileUrl}" controls preload="metadata"></video>`;
           } else {
             mediaHTML = `<div class="doc-icon">📄</div>`;
           }
