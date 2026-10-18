@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Gallery</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Roboto, sans-serif;
+      background: #0f172a; color: #e2e8f0; margin: 0; padding: 20px;
+    }
+    .header {
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;
+    }
+    .btn {
+      background: #0ea5e9; color: white; padding: 0.6rem 1.2rem; border-radius: 8px;
+      text-decoration: none; font-weight: bold; border: none; cursor: pointer;
+    }
+    .grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem;
+    }
+    .card {
+      background: #1e293b; border-radius: 12px; overflow: hidden;
+      border: 1px solid #334155; display: flex; flex-direction: column;
+    }
+    .card img, .card video {
+      width: 100%; height: 200px; object-fit: cover; background: #000;
+    }
+    .card .info {
+      padding: 1rem; display: flex; justify-content: space-between; align-items: center;
+      font-size: 0.85rem; word-break: break-all;
+    }
+    .card a { color: #38bdf8; text-decoration: none; font-weight: bold; }
+    .doc-icon { 
+      height: 200px; display: flex; justify-content: center; align-items: center; 
+      font-size: 4rem; background: #0f172a;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>📂 My Uploads</h1>
+    <a href="index.html" class="btn">← Back to Uploader</a>
+  </div>
+  <div class="grid" id="galleryGrid">
+    <p>Loading files...</p>
+  </div>
+
+  <script>
+    async function loadGallery() {
+      const grid = document.getElementById('galleryGrid');
+      try {
+        const response = await fetch('/api/gallery');
+        const data = await response.json();
+
+        if (!data.success || data.files.length === 0) {
+          grid.innerHTML = '<p>No files uploaded yet.</p>';
+          return;
+        }
+
+        grid.innerHTML = ''; // Clear loading text
+
+        data.files.forEach(file => {
+          const card = document.createElement('div');
+          card.className = 'card';
+          
+          let mediaHTML = '';
+          const fileUrl = `/api/view/${file.id}`;
+
+          if (file.type === 'image') {
+            mediaHTML = `<img src="${fileUrl}" alt="${file.name}" loading="lazy">`;
+          } else if (file.type === 'video') {
+            mediaHTML = `<video src="${fileUrl}" controls></video>`;
+          } else {
+            mediaHTML = `<div class="doc-icon">📄</div>`;
+          }
+
+          card.innerHTML = `
+            ${mediaHTML}
+            <div class="info">
+              <span title="${file.name}">${file.name.length > 20 ? file.name.substring(0, 20) + '...' : file.name}</span>
+              <a href="${fileUrl}" target="_blank">Open</a>
+            </div>
+          `;
+          grid.appendChild(card);
+        });
+      } catch (err) {
+        grid.innerHTML = '<p style="color:red;">Error loading gallery.</p>';
+      }
+    }
+
+    loadGallery();
+  </script>
+</body>
+</html>
