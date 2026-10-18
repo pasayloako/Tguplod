@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Node.js Auth & Uploader</title>
+  <style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      margin: 0; min-height: 100vh; font-family: 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      color: #e2e8f0; display: flex; justify-content: center; align-items: center; padding: 20px;
+    }
+    .card {
+      background: #1e293b; border: 1px solid #334155; border-radius: 20px;
+      padding: 2rem; width: 100%; max-width: 480px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5); display: none;
+    }
+    .card.active { display: block; }
+    h1 { font-size: 1.4rem; margin: 0 0 0.3rem; color: #f8fafc; }
+    .subtitle { font-size: 0.85rem; color: #94a3b8; margin-bottom: 1.5rem; }
+    .form-group { margin-bottom: 1rem; }
+    .form-group label { display: block; font-size: 0.85rem; margin-bottom: 0.4rem; color: #cbd5e1; }
+    .form-group input {
+      width: 100%; padding: 0.8rem; border-radius: 10px; border: 1px solid #475569;
+      background: #0f172a; color: #fff; font-size: 0.95rem;
+    }
+    .form-group input:focus { outline: none; border-color: #38bdf8; }
+    .toggle-auth { text-align: center; font-size: 0.85rem; margin-top: 1rem; color: #94a3b8; cursor: pointer; }
+    .toggle-auth:hover { color: #38bdf8; text-decoration: underline; }
+    
+    .drop-zone {
+      border: 2px dashed #475569; border-radius: 14px; padding: 2rem 1rem;
+      text-align: center; cursor: pointer; transition: all 0.2s; background: #0f172a;
+    }
+    .drop-zone:hover { border-color: #38bdf8; background: #172554; }
+    input[type="file"] { display: none; }
+    .file-list { margin-top: 1rem; margin-bottom: 1rem; }
+    .file-item { display: flex; justify-content: space-between; background: #0f172a; padding: 0.6rem; border-radius: 8px; font-size: 0.8rem; margin-bottom: 0.5rem;}
+    
+    .btn {
+      width: 100%; margin-top: 1rem; padding: 0.9rem; border: none; border-radius: 12px;
+      background: linear-gradient(135deg, #0ea5e9, #2563eb); color: white; font-weight: 600;
+      cursor: pointer; transition: opacity 0.2s;
+    }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-logout { background: #dc2626; }
+    .log { margin-top: 1rem; font-size: 0.75rem; color: #94a3b8; min-height: 1rem; text-align: center; }
+  </style>
+</head>
+<body>
+
+  <!-- LOGIN / SIGNUP -->
+  <div class="card active" id="authCard">
+    <h1 id="authTitle">🔐 Sign In</h1>
+    <div class="subtitle">Secure Node.js Database</div>
+    <div class="form-group">
+      <label>Name</label>
+      <input type="text" id="username" placeholder="John Doe" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="password" placeholder="••••••••">
+    </div>
+    <button class="btn" id="authBtn">Sign In</button>
+    <div class="log" id="authLog"></div>
+    <div class="toggle-auth" id="toggleAuth">Don't have an account? Sign up here.</div>
+  </div>
+
+  <!-- UPLOADER -->
+  <div class="card" id="uploadCard">
+    <h1>📤 File Uploader</h1>
+    <div class="subtitle">Welcome, <span id="welcomeName" style="color:#38bdf8; font-weight:bold;">User</span></div>
+    <div class="drop-zone" id="dropZone">
+      <div class="icon">📁</div>
+      <p>Click to select a file</p>
+    </div>
+    <input type="file" id="fileInput" />
+    <div class="file-list" id="fileList"></div>
+    <button class="btn" id="uploadBtn" disabled>Upload</button>
+    <button class="btn btn-logout" id="logoutBtn">Logout</button>
+    <div class="log" id="log"></div>
+  </div>
+
+  <script>
+    let isLoginMode = true;
+
+    // --- AUTH LOGIC ---
+    const authCard = document.getElementById('authCard');
+    const uploadCard = document.getElementById('uploadCard');
+    const authTitle = document.getElementById('authTitle');
+    const authBtn = document.getElementById('authBtn');
+    const authLog = document.getElementById('authLog');
+    const toggleAuth = document.getElementById('toggleAuth');
+    const usernameInput = document.getElementById('username');
+    const passwordInput = document.getElementById('password');
+    const welcomeName = document.getElementById('welcomeName');
+    const logoutBtn = document.getElementById('logoutBtn');
+
+    toggleAuth.addEventListener('click', () => {
+      isLoginMode = !isLoginMode;
+      authTitle.textContent = isLoginMode ? "🔐 Sign In" : "📝 Sign Up";
+      authBtn.textContent = isLoginMode ? "Sign In" : "Create Account";
+      toggleAuth.textContent = isLoginMode ? "Don't have an account? Sign up here." : "Already have an account? Sign in here.";
+      authLog.textContent = "";
+    });
+
+    authBtn.addEventListener('click', async () => {
+      const name = usernameInput.value.trim();
+      const pass = passwordInput.value.trim();
+
+      if (!name || !pass) {
+        authLog.textContent = "⚠️ Enter both name and password.";
+        return;
+      }
+
+      authBtn.disabled = true;
+      authLog.textContent = "Connecting...";
+      authLog.style.color = "#94a3b8";
+
+      const endpoint = isLoginMode ? '/api/login' : '/api/signup';
+
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, pass })
+        });
+        
+        const data = await response.json();
+
+        if (data.success) {
+          if (!isLoginMode) {
+            authLog.textContent = "✅ " + data.message + " Please Sign In.";
+            authLog.style.color = "#86efac";
+            toggleAuth.click(); 
+            authBtn.disabled = false;
+          } else {
+            authCard.classList.remove('active');
+            uploadCard.classList.add('active');
+            welcomeName.textContent = name;
+            authBtn.disabled = false;
+          }
+        } else {
+          authLog.textContent = "❌ " + data.message;
+          authLog.style.color = "#f87171";
+          authBtn.disabled = false;
+        }
+      } catch (err) {
+        authLog.textContent = "❌ Server error. Is the Node.js server running?";
+        authBtn.disabled = false;
+      }
+    });
+
+    logoutBtn.addEventListener('click', () => {
+      uploadCard.classList.remove('active');
+      authCard.classList.add('active');
+      usernameInput.value = "";
+      passwordInput.value = "";
+      authLog.textContent = "";
+    });
+
+    // --- UPLOADER LOGIC ---
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const fileList = document.getElementById('fileList');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const logEl = document.getElementById('log');
+    let selectedFile = null;
+
+    function renderList() {
+      fileList.innerHTML = '';
+      if (!selectedFile) { uploadBtn.disabled = true; return; }
+      
+      const item = document.createElement('div');
+      item.className = 'file-item';
+      item.innerHTML = `<span>${selectedFile.name}</span>`;
+      fileList.appendChild(item);
+      uploadBtn.disabled = false;
+    }
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', e => {
+      if (e.target.files.length > 0) {
+        selectedFile = e.target.files[0];
+        renderList();
+      }
+      fileInput.value = '';
+    });
+
+    uploadBtn.addEventListener('click', async () => {
+      if (!selectedFile) return;
+      
+      uploadBtn.disabled = true;
+      logEl.textContent = 'Uploading to Telegram...';
+      logEl.style.color = "#94a3b8";
+
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+
+      try {
+        const response = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+          logEl.textContent = "✅ " + data.message;
+          logEl.style.color = "#86efac";
+          selectedFile = null;
+          renderList();
+        } else {
+          logEl.textContent = "❌ " + data.message;
+          logEl.style.color = "#f87171";
+          uploadBtn.disabled = false;
+        }
+      } catch (err) {
+        logEl.textContent = "❌ Upload failed. Check server.";
+        logEl.style.color = "#f87171";
+        uploadBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+        </html>
