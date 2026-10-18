@@ -1,6 +1,7 @@
 const express = require('express');
 const TelegramBot = require('node-telegram-bot-api');
 const multer = require('multer');
+const https = require('https');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -19,8 +20,6 @@ const upload = multer({ storage: multer.memoryStorage() });
 app.use(express.json());
 app.use(express.static('public')); 
 
-// Temporary memory database for uploaded files
-// (This resets if the server restarts, but works great for a live demo!)
 let galleryFiles = []; 
 
 // --- AUTHENTICATION ROUTES ---
@@ -56,14 +55,11 @@ app.post('/api/login', async (req, res) => {
 // --- FILE UPLOADER ROUTE ---
 app.post('/api/upload', upload.single('file'), async (req, res) => {
     if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
-
     const file = req.file;
     const fileOptions = { filename: file.originalname, contentType: file.mimetype };
 
     try {
         let sentMessage;
-        
-        // Send to the Admin chat and capture the response
         if (file.mimetype.startsWith('image/')) {
             sentMessage = await bot.sendPhoto(ADMIN_CHAT_ID, file.buffer, {}, fileOptions);
         } else if (file.mimetype.startsWith('video/')) {
@@ -72,9 +68,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
             sentMessage = await bot.sendDocument(ADMIN_CHAT_ID, file.buffer, {}, fileOptions);
         }
 
-        // Telegram returns the file_id. We save it to our memory gallery.
         let fileId, isVideo = false, isImage = false;
-        
         if (file.mimetype.startsWith('image/')) {
             fileId = sentMessage.photo[sentMessage.photo.length - 1].file_id;
             isImage = true;
@@ -98,20 +92,25 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     }
 });
 
-// --- GALLERY ROUTE ---
 app.get('/api/gallery', (req, res) => {
     res.json({ success: true, files: galleryFiles });
 });
 
-// --- VIEW FILE ROUTE (Redirects to Telegram's CDN) ---
+// --- NEW STREAM PROXY ROUTE (Fixes video playback) ---
 app.get('/api/view/:id', async (req, res) => {
     const fileObj = galleryFiles.find(f => f.id === req.params.id);
     if (!fileObj) return res.status(404).send('File not found');
 
     try {
-        // Get the direct file URL from Telegram
         const fileLink = await bot.getFileLink(fileObj.fileId);
-        res.redirect(fileLink); // Redirect user to the actual image/video
+        // Fetch from Telegram and pipe directly to the browser
+        https.get(fileLink, (telegramRes) => {
+            res.setHeader('Content-Type', telegramRes.headers['content-type'] || 'application/octet-stream');
+            if (telegramRes.headers['content-length']) {
+                res.setHeader('Content-Length', telegramRes.headers['content-length']);
+            }
+            telegramRes.pipe(res);
+        });
     } catch (error) {
         res.status(500).send('Error loading file');
     }
