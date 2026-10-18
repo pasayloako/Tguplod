@@ -26,12 +26,16 @@
     .card img, .card video {
       width: 100%; height: 200px; object-fit: cover; background: #000;
     }
+    .card audio {
+      width: 100%; height: 50px; margin-top: 75px; margin-bottom: 75px; padding: 0 10px;
+    }
     .card .info {
       padding: 1rem; display: flex; justify-content: space-between; align-items: center;
       font-size: 0.85rem; word-break: break-all;
     }
     .card a { color: #38bdf8; text-decoration: none; font-weight: bold; }
-    .doc-icon { 
+    .card a:hover { text-decoration: underline; }
+    .file-icon { 
       height: 200px; display: flex; justify-content: center; align-items: center; 
       font-size: 4rem; background: #0f172a;
     }
@@ -47,7 +51,6 @@
   </div>
 
   <script>
-    // Security check: If no user is saved, send back to login
     if (!localStorage.getItem('loggedInUser')) {
       window.location.href = 'index.html';
     }
@@ -70,22 +73,25 @@
           card.className = 'card';
           
           let mediaHTML = '';
-          const fileUrl = `/api/view/${file.id}`;
+          const fileUrl = `/api/view/${file.id}`; // This is your direct link!
 
           if (file.type === 'image') {
             mediaHTML = `<img src="${fileUrl}" alt="${file.name}" loading="lazy">`;
           } else if (file.type === 'video') {
-            // Now plays perfectly with the Node proxy
             mediaHTML = `<video src="${fileUrl}" controls preload="metadata"></video>`;
+          } else if (file.type === 'audio') {
+            mediaHTML = `<audio src="${fileUrl}" controls preload="metadata"></audio>`;
           } else {
-            mediaHTML = `<div class="doc-icon">📄</div>`;
+            // For PDFs, Docs, etc.
+            mediaHTML = `<div class="file-icon">📄</div>`;
           }
 
+          // We set the target to "_blank" so it opens in a new tab instead of downloading
           card.innerHTML = `
             ${mediaHTML}
             <div class="info">
-              <span title="${file.name}">${file.name.length > 20 ? file.name.substring(0, 20) + '...' : file.name}</span>
-              <a href="${fileUrl}" target="_blank">Open</a>
+              <span title="${file.name}">${file.name.length > 15 ? file.name.substring(0, 15) + '...' : file.name}</span>
+              <a href="${fileUrl}" target="_blank" rel="noopener noreferrer">Open Link</a>
             </div>
           `;
           grid.appendChild(card);
